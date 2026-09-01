@@ -206,18 +206,22 @@ private fun RevenueCard(revenue: List<Pair<String, Double>>) {
 private fun FleetScreen(cars: List<Car>, vm: RentalViewModel) {
     var showAdd by remember { mutableStateOf(false) }
     var maintenanceCar by remember { mutableStateOf<Car?>(null) }
+    var editCar by remember { mutableStateOf<Car?>(null) }
+    var deleteCar by remember { mutableStateOf<Car?>(null) }
     ScreenScaffold(title = "Ma flotte", subtitle = "Disponibilité, tarifs et entretien", actionLabel = "Ajouter", onAction = { showAdd = true }) {
         items(cars, key = { it.id }) { car ->
-            CarCard(car, onStatus = { vm.updateCarStatus(car.id, it) }, onMaintenance = { maintenanceCar = car })
+            CarCard(car, onStatus = { vm.updateCarStatus(car.id, it) }, onMaintenance = { maintenanceCar = car }, onEdit = { editCar = car }, onDelete = { deleteCar = car })
         }
         if (cars.isEmpty()) item { EmptyState("Aucun véhicule enregistré") }
     }
     if (showAdd) AddCarDialog(onDismiss = { showAdd = false }) { b, m, c, t, f, r, p, km -> vm.addCar(b, m, c, t, f, r, p, km); showAdd = false }
     maintenanceCar?.let { car -> AddMaintenanceDialog(car, { maintenanceCar = null }) { description, cost -> vm.addMaintenance(car.id, description, cost); maintenanceCar = null } }
+    editCar?.let { car -> EditCarDialog(car, { editCar = null }) { updated -> vm.updateCar(updated); editCar = null } }
+    deleteCar?.let { car -> DeleteConfirmDialog("Supprimer ce véhicule ?", "Cette action est impossible si le véhicule possède des réservations ou des entretiens.", { deleteCar = null }) { vm.deleteCar(car.id); deleteCar = null } }
 }
 
 @Composable
-private fun CarCard(car: Car, onStatus: (String) -> Unit, onMaintenance: () -> Unit) {
+private fun CarCard(car: Car, onStatus: (String) -> Unit, onMaintenance: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
@@ -237,6 +241,10 @@ private fun CarCard(car: Car, onStatus: (String) -> Unit, onMaintenance: () -> U
                 Text("${car.transmission} • ${car.fuelType} • ${car.mileage} km", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("${money(car.dailyRate)} MAD/j", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
             }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onEdit, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)) { Icon(Icons.Default.Edit, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Modifier") }
+                OutlinedButton(onClick = onDelete, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Icon(Icons.Default.Delete, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Supprimer") }
+            }
             if (car.status != CarStatus.MAINTENANCE) TextButton(onClick = onMaintenance, contentPadding = PaddingValues(0.dp)) { Icon(Icons.Default.Build, null, Modifier.size(16.dp)); Spacer(Modifier.width(5.dp)); Text("Planifier un entretien") }
         }
     }
@@ -245,19 +253,23 @@ private fun CarCard(car: Car, onStatus: (String) -> Unit, onMaintenance: () -> U
 @Composable
 private fun ReservationsScreen(reservations: List<Reservation>, cars: List<Car>, clients: List<Client>, vm: RentalViewModel) {
     var showAdd by remember { mutableStateOf(false) }
+    var editReservation by remember { mutableStateOf<Reservation?>(null) }
+    var deleteReservation by remember { mutableStateOf<Reservation?>(null) }
     ScreenScaffold(title = "Réservations", subtitle = "Planning et suivi des locations", actionLabel = "Nouvelle", onAction = { showAdd = true }) {
         items(reservations, key = { it.id }) { reservation ->
             val car = cars.find { it.id == reservation.carId }
             val client = clients.find { it.id == reservation.clientId }
-            ReservationCard(reservation, car, client, onStatus = { vm.updateReservationStatus(reservation.id, it) }, onDelete = { vm.deleteReservation(reservation.id) })
+            ReservationCard(reservation, car, client, onStatus = { vm.updateReservationStatus(reservation.id, it) }, onEdit = { editReservation = reservation }, onDelete = { deleteReservation = reservation })
         }
         if (reservations.isEmpty()) item { EmptyState("Aucune réservation") }
     }
     if (showAdd) AddReservationDialog(cars, clients, { showAdd = false }) { carId, clientId, days, options, cost -> vm.addReservation(carId, clientId, days, options, cost); showAdd = false }
+    editReservation?.let { reservation -> EditReservationDialog(reservation, cars, clients, { editReservation = null }) { carId, clientId, startDate, days, options, cost -> vm.updateReservation(reservation.id, carId, clientId, startDate, days, options, cost); editReservation = null } }
+    deleteReservation?.let { reservation -> DeleteConfirmDialog("Supprimer cette réservation ?", "Le contrat et la facture liés seront également supprimés dans la même transaction.", { deleteReservation = null }) { vm.deleteReservation(reservation.id); deleteReservation = null } }
 }
 
 @Composable
-private fun ReservationCard(reservation: Reservation, car: Car?, client: Client?, onStatus: (String) -> Unit, onDelete: () -> Unit) {
+private fun ReservationCard(reservation: Reservation, car: Car?, client: Client?, onStatus: (String) -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -271,7 +283,8 @@ private fun ReservationCard(reservation: Reservation, car: Car?, client: Client?
                     DropdownMenu(expanded, { expanded = false }) {
                         listOf(RentalStatus.PENDING, RentalStatus.CONFIRMED, RentalStatus.ACTIVE, RentalStatus.COMPLETED, RentalStatus.CANCELLED).forEach { status -> DropdownMenuItem(text = { Text(status) }, onClick = { onStatus(status); expanded = false }) }
                         HorizontalDivider()
-                        DropdownMenuItem(text = { Text("Supprimer", color = MaterialTheme.colorScheme.error) }, onClick = onDelete)
+                        DropdownMenuItem(text = { Text("Modifier") }, onClick = { onEdit(); expanded = false })
+                        DropdownMenuItem(text = { Text("Supprimer", color = MaterialTheme.colorScheme.error) }, onClick = { onDelete(); expanded = false })
                     }
                 }
             }
@@ -281,6 +294,9 @@ private fun ReservationCard(reservation: Reservation, car: Car?, client: Client?
                 Text(if (reservation.options.isBlank()) "Sans option" else reservation.options, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("${money(reservation.totalPrice)} MAD", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
             }
+            if (reservation.status != RentalStatus.ACTIVE && reservation.status != RentalStatus.COMPLETED) {
+                TextButton(onClick = onEdit, contentPadding = PaddingValues(0.dp)) { Icon(Icons.Default.Edit, null, Modifier.size(16.dp)); Spacer(Modifier.width(5.dp)); Text("Modifier la réservation") }
+            }
         }
     }
 }
@@ -289,17 +305,21 @@ private fun ReservationCard(reservation: Reservation, car: Car?, client: Client?
 private fun ClientsScreen(clients: List<Client>, vm: RentalViewModel) {
     var query by remember { mutableStateOf("") }
     var showAdd by remember { mutableStateOf(false) }
+    var editClient by remember { mutableStateOf<Client?>(null) }
+    var deleteClient by remember { mutableStateOf<Client?>(null) }
     val filtered = clients.filter { it.fullName.contains(query, true) || it.phone.contains(query, true) || it.driverLicenseNumber.contains(query, true) }
     ScreenScaffold(title = "Clients", subtitle = "Fichier des conducteurs", actionLabel = "Ajouter", onAction = { showAdd = true }) {
         item { OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), placeholder = { Text("Nom, téléphone ou permis") }, leadingIcon = { Icon(Icons.Default.Search, null) }, singleLine = true, shape = RoundedCornerShape(14.dp)) }
-        items(filtered, key = { it.id }) { client -> ClientCard(client) }
+        items(filtered, key = { it.id }) { client -> ClientCard(client, onEdit = { editClient = client }, onDelete = { deleteClient = client }) }
         if (filtered.isEmpty()) item { EmptyState("Aucun client trouvé") }
     }
     if (showAdd) AddClientDialog({ showAdd = false }) { name, phone, email, license, identity, address -> vm.addClient(name, phone, email, license, identity, address); showAdd = false }
+    editClient?.let { client -> EditClientDialog(client, { editClient = null }) { updated -> vm.updateClient(updated); editClient = null } }
+    deleteClient?.let { client -> DeleteConfirmDialog("Supprimer ce client ?", "La suppression est refusée si le client possède une réservation.", { deleteClient = null }) { vm.deleteClient(client.id); deleteClient = null } }
 }
 
 @Composable
-private fun ClientCard(client: Client) {
+private fun ClientCard(client: Client, onEdit: () -> Unit, onDelete: () -> Unit) {
     Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Row(Modifier.padding(15.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(Modifier.size(44.dp).background(MaterialTheme.colorScheme.tertiaryContainer, RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) { Text(client.fullName.take(1).uppercase(), fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.tertiary) }
@@ -308,7 +328,10 @@ private fun ClientCard(client: Client) {
                 Text("${client.phone}${if (client.address.isBlank()) "" else " • ${client.address}"}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (client.driverLicenseNumber.isNotBlank()) Text("Permis ${client.driverLicenseNumber}", fontSize = 11.sp)
             }
-            Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.outline)
+            Column(horizontalAlignment = Alignment.End) {
+                IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, "Modifier", tint = MaterialTheme.colorScheme.primary) }
+                IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "Supprimer", tint = MaterialTheme.colorScheme.error) }
+            }
         }
     }
 }
@@ -328,6 +351,7 @@ private fun DocumentsScreen(contracts: List<Contract>, invoices: List<Invoice>, 
                 vehicle = "${car?.brand ?: "Véhicule"} ${car?.model ?: ""}", status = contract.status,
                 amount = "Caution ${money(contract.depositAmount)} MAD",
                 onStatus = { vm.updateContractStatus(contract.id, it) },
+                onDelete = { vm.deleteContract(contract.id) },
                 onExport = { val result = PdfExporter.exportContract(context, contract, client?.fullName ?: "Client", car?.let { c -> "${c.brand} ${c.model}" } ?: "Véhicule"); Toast.makeText(context, result, Toast.LENGTH_LONG).show() }
             )
         } else items(invoices, key = { it.id }) { invoice ->
@@ -337,6 +361,7 @@ private fun DocumentsScreen(contracts: List<Contract>, invoices: List<Invoice>, 
                 vehicle = "${car?.brand ?: "Véhicule"} ${car?.model ?: ""}", status = invoice.paymentStatus,
                 amount = "Total ${money(invoice.total)} MAD",
                 onStatus = { vm.updateInvoiceStatus(invoice.id, it, invoice.paymentMethod) },
+                onDelete = { vm.deleteInvoice(invoice.id) },
                 onExport = { val result = PdfExporter.exportInvoice(context, invoice, client?.fullName ?: "Client", car?.let { c -> "${c.brand} ${c.model}" } ?: "Véhicule"); Toast.makeText(context, result, Toast.LENGTH_LONG).show() }
             )
         }
@@ -345,8 +370,9 @@ private fun DocumentsScreen(contracts: List<Contract>, invoices: List<Invoice>, 
 }
 
 @Composable
-private fun DocumentCard(title: String, person: String, vehicle: String, status: String, amount: String, onStatus: (String) -> Unit, onExport: () -> Unit) {
+private fun DocumentCard(title: String, person: String, vehicle: String, status: String, amount: String, onStatus: (String) -> Unit, onDelete: () -> Unit, onExport: () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
     Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -354,6 +380,8 @@ private fun DocumentCard(title: String, person: String, vehicle: String, status:
                 Box { StatusPill(status, { expanded = true }); DropdownMenu(expanded, { expanded = false }) {
                     val statuses = if (title.startsWith("Contrat")) listOf(ContractStatus.PENDING, ContractStatus.SIGNED, ContractStatus.ACTIVE, ContractStatus.CLOSED, ContractStatus.CANCELLED) else listOf(PaymentStatus.PENDING, PaymentStatus.PAID, PaymentStatus.LATE, PaymentStatus.CANCELLED)
                     statuses.forEach { item -> DropdownMenuItem(text = { Text(item) }, onClick = { onStatus(item); expanded = false }) }
+                    HorizontalDivider()
+                    DropdownMenuItem(text = { Text("Supprimer", color = MaterialTheme.colorScheme.error) }, onClick = { confirmDelete = true; expanded = false })
                 } }
             }
             Text(vehicle, fontSize = 12.sp)
@@ -363,6 +391,7 @@ private fun DocumentCard(title: String, person: String, vehicle: String, status:
             }
         }
     }
+    if (confirmDelete) DeleteConfirmDialog("Supprimer ce document ?", "La suppression respecte les liens avec la réservation et peut être refusée si le document est encore utilisé.", { confirmDelete = false }) { onDelete(); confirmDelete = false }
 }
 
 @Composable
@@ -415,6 +444,17 @@ private fun StatusPill(status: String, onClick: () -> Unit) {
 
 @Composable
 private fun EmptyState(text: String) { Box(Modifier.fillMaxWidth().padding(30.dp), contentAlignment = Alignment.Center) { Column(horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Default.Inbox, null, Modifier.size(42.dp), tint = MaterialTheme.colorScheme.outline); Spacer(Modifier.height(8.dp)); Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant) } } }
+
+@Composable
+private fun DeleteConfirmDialog(title: String, message: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title, fontWeight = FontWeight.Bold) },
+        text = { Text(message) },
+        confirmButton = { Button(onClick = onConfirm, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("Supprimer") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Annuler") } }
+    )
+}
 
 private fun money(value: Double) = String.format(Locale.FRANCE, "%,.2f", value)
 private fun date(value: Long) = SimpleDateFormat("dd/MM/yyyy", Locale.FRANCE).format(Date(value))

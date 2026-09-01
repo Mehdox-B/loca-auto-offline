@@ -33,6 +33,23 @@ fun AddCarDialog(onDismiss: () -> Unit, onConfirm: (String, String, String, Stri
 }
 
 @Composable
+fun EditCarDialog(car: Car, onDismiss: () -> Unit, onConfirm: (Car) -> Unit) {
+    var brand by remember(car.id) { mutableStateOf(car.brand) }; var model by remember(car.id) { mutableStateOf(car.model) }
+    var category by remember(car.id) { mutableStateOf(car.category) }; var transmission by remember(car.id) { mutableStateOf(car.transmission) }
+    var fuel by remember(car.id) { mutableStateOf(car.fuelType) }; var rate by remember(car.id) { mutableStateOf(car.dailyRate.toString()) }
+    var plate by remember(car.id) { mutableStateOf(car.licensePlate) }; var mileage by remember(car.id) { mutableStateOf(car.mileage.toString()) }
+    FormDialog("Modifier le véhicule", onDismiss, enabled = brand.isNotBlank() && model.isNotBlank() && plate.isNotBlank() && rate.toDoubleOrNull()?.let { it > 0 } == true, confirmLabel = "Enregistrer", content = {
+        Field("Marque", brand) { brand = it }; Field("Modèle", model) { model = it }; Field("Immatriculation", plate) { plate = it }
+        Field("Tarif journalier (MAD)", rate, KeyboardType.Decimal) { rate = it }; Field("Kilométrage", mileage, KeyboardType.Number) { mileage = it }
+        ChoiceRow("Catégorie", listOf("Citadine", "Économique", "SUV", "Premium", "Utilitaire"), category) { category = it }
+        ChoiceRow("Boîte", listOf("Manuelle", "Automatique"), transmission) { transmission = it }
+        ChoiceRow("Énergie", listOf("Essence", "Diesel", "Hybride", "Électrique"), fuel) { fuel = it }
+    }, onSubmit = {
+        onConfirm(car.copy(brand = brand.trim(), model = model.trim(), category = category, transmission = transmission, fuelType = fuel, dailyRate = rate.toDoubleOrNull() ?: car.dailyRate, licensePlate = plate.trim(), mileage = mileage.toIntOrNull() ?: car.mileage))
+    })
+}
+
+@Composable
 fun AddClientDialog(onDismiss: () -> Unit, onConfirm: (String, String, String, String, String, String) -> Unit) {
     var name by remember { mutableStateOf("") }; var phone by remember { mutableStateOf("") }; var email by remember { mutableStateOf("") }
     var license by remember { mutableStateOf("") }; var identity by remember { mutableStateOf("") }; var address by remember { mutableStateOf("") }
@@ -40,6 +57,17 @@ fun AddClientDialog(onDismiss: () -> Unit, onConfirm: (String, String, String, S
         Field("Nom complet", name) { name = it }; Field("Téléphone", phone, KeyboardType.Phone) { phone = it }; Field("E-mail", email, KeyboardType.Email) { email = it }
         Field("N° permis", license) { license = it }; Field("CIN / Passeport", identity) { identity = it }; Field("Ville / adresse", address) { address = it }
     }, onSubmit = { onConfirm(name, phone, email, license, identity, address) })
+}
+
+@Composable
+fun EditClientDialog(client: Client, onDismiss: () -> Unit, onConfirm: (Client) -> Unit) {
+    var name by remember(client.id) { mutableStateOf(client.fullName) }; var phone by remember(client.id) { mutableStateOf(client.phone) }
+    var email by remember(client.id) { mutableStateOf(client.email) }; var license by remember(client.id) { mutableStateOf(client.driverLicenseNumber) }
+    var identity by remember(client.id) { mutableStateOf(client.identityNumber) }; var address by remember(client.id) { mutableStateOf(client.address) }
+    FormDialog("Modifier le client", onDismiss, enabled = name.isNotBlank() && phone.isNotBlank(), confirmLabel = "Enregistrer", content = {
+        Field("Nom complet", name) { name = it }; Field("Téléphone", phone, KeyboardType.Phone) { phone = it }; Field("E-mail", email, KeyboardType.Email) { email = it }
+        Field("N° permis", license) { license = it }; Field("CIN / Passeport", identity) { identity = it }; Field("Ville / adresse", address) { address = it }
+    }, onSubmit = { onConfirm(client.copy(fullName = name.trim(), phone = phone.trim(), email = email.trim(), driverLicenseNumber = license.trim(), identityNumber = identity.trim(), address = address.trim())) })
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -61,6 +89,30 @@ fun AddReservationDialog(cars: List<Car>, clients: List<Client>, onDismiss: () -
         Field("Durée (jours)", days, KeyboardType.Number) { days = it }; Field("Options", options) { options = it }; Field("Coût des options (MAD)", optionsCost, KeyboardType.Decimal) { optionsCost = it }
         Text("La date de départ est fixée à demain. Le dépôt et la facture seront générés selon le statut.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }, onSubmit = { onConfirm(selectedCar!!.id, selectedClient!!.id, days.toIntOrNull() ?: 1, options, optionsCost.toDoubleOrNull() ?: 0.0) })
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditReservationDialog(reservation: Reservation, cars: List<Car>, clients: List<Client>, onDismiss: () -> Unit, onConfirm: (Int, Int, Long, Int, String, Double) -> Unit) {
+    val currentCar = cars.find { it.id == reservation.carId }
+    val selectableCars = cars.filter { it.status != CarStatus.MAINTENANCE || it.id == reservation.carId }
+    var selectedCar by remember(reservation.id) { mutableStateOf(currentCar ?: selectableCars.firstOrNull()) }
+    var selectedClient by remember(reservation.id) { mutableStateOf(clients.find { it.id == reservation.clientId } ?: clients.firstOrNull()) }
+    var carExpanded by remember { mutableStateOf(false) }; var clientExpanded by remember { mutableStateOf(false) }
+    var days by remember(reservation.id) { mutableStateOf(reservation.totalDays.toString()) }; var options by remember(reservation.id) { mutableStateOf(reservation.options) }
+    var optionsCost by remember(reservation.id) { mutableStateOf(reservation.optionsCost.toString()) }
+    FormDialog("Modifier la réservation", onDismiss, enabled = selectedCar != null && selectedClient != null && days.toIntOrNull()?.let { it > 0 } == true && optionsCost.toDoubleOrNull()?.let { it >= 0 } == true, confirmLabel = "Enregistrer", content = {
+        ExposedDropdownMenuBox(expanded = carExpanded, onExpandedChange = { carExpanded = !carExpanded }) {
+            OutlinedTextField(selectedCar?.let { "${it.brand} ${it.model}" } ?: "Aucun véhicule", {}, Modifier.menuAnchor().fillMaxWidth(), readOnly = true, label = { Text("Véhicule") }, trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) })
+            ExposedDropdownMenu(expanded = carExpanded, onDismissRequest = { carExpanded = false }) { selectableCars.forEach { car -> DropdownMenuItem(text = { Text("${car.brand} ${car.model} • ${car.dailyRate.toInt()} MAD/j") }, onClick = { selectedCar = car; carExpanded = false }) } }
+        }
+        ExposedDropdownMenuBox(expanded = clientExpanded, onExpandedChange = { clientExpanded = !clientExpanded }) {
+            OutlinedTextField(selectedClient?.fullName ?: "Aucun client", {}, Modifier.menuAnchor().fillMaxWidth(), readOnly = true, label = { Text("Client") }, trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) })
+            ExposedDropdownMenu(expanded = clientExpanded, onDismissRequest = { clientExpanded = false }) { clients.forEach { client -> DropdownMenuItem(text = { Text(client.fullName) }, onClick = { selectedClient = client; clientExpanded = false }) } }
+        }
+        Field("Durée (jours)", days, KeyboardType.Number) { days = it }; Field("Options", options) { options = it }; Field("Coût des options (MAD)", optionsCost, KeyboardType.Decimal) { optionsCost = it }
+        Text("La date de départ reste le ${dateLabel(reservation.startDate)}. Les montants sont recalculés selon le véhicule sélectionné.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }, onSubmit = { onConfirm(selectedCar!!.id, selectedClient!!.id, reservation.startDate, days.toIntOrNull() ?: 1, options, optionsCost.toDoubleOrNull() ?: 0.0) })
 }
 
 @Composable
@@ -111,3 +163,5 @@ private fun ChoiceRow(label: String, values: List<String>, selected: String, onS
         DropdownMenu(expanded, { expanded = false }) { values.forEach { value -> DropdownMenuItem(text = { Text(value) }, onClick = { onSelected(value); expanded = false }) } }
     }
 }
+
+private fun dateLabel(value: Long) = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.FRANCE).format(java.util.Date(value))

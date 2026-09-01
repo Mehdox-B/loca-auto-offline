@@ -34,6 +34,27 @@ interface RentalDao {
     @Query("SELECT * FROM cars WHERE id = :id")
     suspend fun getCar(id: Int): Car?
 
+    @Query("SELECT * FROM clients WHERE id = :id")
+    suspend fun getClient(id: Int): Client?
+
+    @Query("SELECT COUNT(*) FROM cars WHERE licensePlate = :licensePlate AND id != :excludedId")
+    suspend fun countCarsWithPlate(licensePlate: String, excludedId: Int): Int
+
+    @Query("SELECT COUNT(*) FROM reservations WHERE carId = :carId")
+    suspend fun countReservationsForCar(carId: Int): Int
+
+    @Query("SELECT COUNT(*) FROM reservations WHERE clientId = :clientId")
+    suspend fun countReservationsForClient(clientId: Int): Int
+
+    @Query("SELECT COUNT(*) FROM maintenance_records WHERE carId = :carId")
+    suspend fun countMaintenanceForCar(carId: Int): Int
+
+    @Query("SELECT COUNT(*) FROM reservations WHERE carId = :carId AND status = 'En cours'")
+    suspend fun countActiveReservationsForCar(carId: Int): Int
+
+    @Query("SELECT COUNT(*) FROM reservations WHERE carId = :carId AND status NOT IN ('Annulée', 'Terminée')")
+    suspend fun countOpenReservationsForCar(carId: Int): Int
+
     @Query("SELECT * FROM reservations WHERE id = :id")
     suspend fun getReservation(id: Int): Reservation?
 
@@ -52,29 +73,32 @@ interface RentalDao {
     @Query("SELECT * FROM invoices WHERE id = :id LIMIT 1")
     suspend fun getInvoice(id: Int): Invoice?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertCar(car: Car): Long
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertClient(client: Client): Long
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertReservation(reservation: Reservation): Long
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertContract(contract: Contract): Long
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertInvoice(invoice: Invoice): Long
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertMaintenance(record: MaintenanceRecord): Long
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertExpense(expense: Expense): Long
 
     @Update
     suspend fun updateCar(car: Car)
+
+    @Update
+    suspend fun updateClient(client: Client)
 
     @Update
     suspend fun updateReservation(reservation: Reservation)
@@ -87,4 +111,16 @@ interface RentalDao {
 
     @Delete
     suspend fun deleteReservation(reservation: Reservation)
+
+    @Delete
+    suspend fun deleteCar(car: Car)
+
+    @Delete
+    suspend fun deleteClient(client: Client)
+
+    @Delete
+    suspend fun deleteContract(contract: Contract)
+
+    @Delete
+    suspend fun deleteInvoice(invoice: Invoice)
 }

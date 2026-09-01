@@ -33,13 +33,21 @@ class RentalViewModel(application: Application) : AndroidViewModel(application) 
         repository.addCar(Car(brand = brand, model = model, category = category, transmission = transmission, fuelType = fuel, dailyRate = rate, licensePlate = plate, mileage = mileage))
     }
 
-    fun updateCarStatus(carId: Int, status: String) = launchAction("Statut du véhicule mis à jour") {
+    fun updateCar(car: Car) = launchResultAction("Véhicule mis à jour") { repository.updateCar(car) }
+
+    fun deleteCar(id: Int) = launchResultAction("Véhicule supprimé") { repository.deleteCar(id) }
+
+    fun updateCarStatus(carId: Int, status: String) = launchResultAction("Statut du véhicule mis à jour") {
         repository.updateCarStatus(carId, status)
     }
 
     fun addClient(name: String, phone: String, email: String, license: String, identity: String, address: String) = launchAction("Client enregistré") {
         repository.addClient(Client(fullName = name, phone = phone, email = email, driverLicenseNumber = license, identityNumber = identity, address = address))
     }
+
+    fun updateClient(client: Client) = launchResultAction("Client mis à jour") { repository.updateClient(client) }
+
+    fun deleteClient(id: Int) = launchResultAction("Client supprimé") { repository.deleteClient(id) }
 
     fun addReservation(carId: Int, clientId: Int, days: Int, options: String, optionsCost: Double) {
         viewModelScope.launch {
@@ -50,6 +58,14 @@ class RentalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun updateReservation(id: Int, carId: Int, clientId: Int, startDate: Long, days: Int, options: String, optionsCost: Double) {
+        viewModelScope.launch {
+            val end = startDate + days.coerceAtLeast(1) * 86_400_000L
+            val result = repository.updateReservation(id, carId, clientId, startDate, end, options, optionsCost)
+            _message.value = result.fold({ "Réservation mise à jour" }, { it.message ?: "Mise à jour impossible" })
+        }
+    }
+
     fun updateReservationStatus(id: Int, status: String) {
         viewModelScope.launch {
             val result = repository.updateReservationStatus(id, status)
@@ -57,7 +73,7 @@ class RentalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun deleteReservation(id: Int) = launchAction("Réservation supprimée") { repository.deleteReservation(id) }
+    fun deleteReservation(id: Int) = launchResultAction("Réservation supprimée") { repository.deleteReservation(id) }
 
     fun updateContractStatus(id: Int, status: String) {
         viewModelScope.launch {
@@ -66,13 +82,20 @@ class RentalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun createContract(reservationId: Int) = launchResultAction("Contrat créé") { repository.createContract(reservationId) }
+
+    fun createInvoice(contractId: Int) = launchResultAction("Facture créée") { repository.createInvoice(contractId) }
+
     fun updateInvoiceStatus(id: Int, status: String, method: String) = launchAction("Paiement mis à jour") {
-        repository.updateInvoiceStatus(id, status, method)
+        repository.updateInvoiceStatus(id, status, method).getOrThrow()
     }
 
+    fun deleteContract(id: Int) = launchResultAction("Contrat supprimé") { repository.deleteContract(id) }
+
+    fun deleteInvoice(id: Int) = launchResultAction("Facture supprimée") { repository.deleteInvoice(id) }
+
     fun addMaintenance(carId: Int, description: String, cost: Double) = launchAction("Entretien enregistré") {
-        repository.addMaintenance(MaintenanceRecord(carId = carId, description = description, cost = cost))
-        repository.updateCarStatus(carId, CarStatus.MAINTENANCE)
+        repository.addMaintenance(MaintenanceRecord(carId = carId, description = description, cost = cost)).getOrThrow()
     }
 
     fun addExpense(category: String, description: String, amount: Double) = launchAction("Dépense enregistrée") {
@@ -82,6 +105,13 @@ class RentalViewModel(application: Application) : AndroidViewModel(application) 
     private fun launchAction(success: String, action: suspend () -> Unit) {
         viewModelScope.launch {
             runCatching { action() }.onSuccess { _message.value = success }.onFailure { _message.value = it.message ?: "Une erreur est survenue" }
+        }
+    }
+
+    private fun <T> launchResultAction(success: String, action: suspend () -> Result<T>) {
+        viewModelScope.launch {
+            val result = runCatching { action() }.getOrElse { Result.failure(it) }
+            _message.value = result.fold({ success }, { it.message ?: "Une erreur est survenue" })
         }
     }
 }

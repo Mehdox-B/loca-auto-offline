@@ -19,6 +19,8 @@ Application Android native de gestion d'une agence de location de voitures au Ma
 - Documents : contrats, factures, paiements et export PDF.
 - Opérations : entretiens et dépenses de l'agence.
 
+Les modules Flotte, Réservations, Clients et Documents disposent de leur cycle CRUD : création, consultation, modification et suppression. Les contrats sont créés à la confirmation d'une réservation et les factures à la signature du contrat (des APIs explicites existent aussi pour ces créations). Les suppressions contrôlent les dépendances métier (historique de réservations, entretiens, paiements) et les changements liés sont exécutés dans une transaction Room unique. Une réservation recalculée met aussi à jour sa facture liée, et sa suppression supprime atomiquement ses documents générés.
+
 ## Ouvrir le projet
 
 Ouvrir le dossier dans Android Studio, laisser Gradle synchroniser les dépendances, puis lancer la configuration `app` sur un émulateur ou un appareil Android.
