@@ -41,8 +41,8 @@ class RentalViewModel(application: Application) : AndroidViewModel(application) 
         repository.updateCarStatus(carId, status)
     }
 
-    fun addClient(name: String, phone: String, email: String, license: String, identity: String, address: String) = launchAction("Client enregistré") {
-        repository.addClient(Client(fullName = name, phone = phone, email = email, driverLicenseNumber = license, identityNumber = identity, address = address))
+    fun addClient(name: String, phone: String, email: String, license: String, identity: String, address: String, nationalIdDocumentUri: String = "", driverLicenseDocumentUri: String = "") = launchAction("Client enregistré") {
+        repository.addClient(Client(fullName = name, phone = phone, email = email, driverLicenseNumber = license, identityNumber = identity, address = address, nationalIdDocumentUri = nationalIdDocumentUri, driverLicenseDocumentUri = driverLicenseDocumentUri))
     }
 
     fun updateClient(client: Client) = launchResultAction("Client mis à jour") { repository.updateClient(client) }

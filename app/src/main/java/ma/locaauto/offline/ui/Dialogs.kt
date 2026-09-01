@@ -1,13 +1,18 @@
 package ma.locaauto.offline.ui
 
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -50,13 +55,16 @@ fun EditCarDialog(car: Car, onDismiss: () -> Unit, onConfirm: (Car) -> Unit) {
 }
 
 @Composable
-fun AddClientDialog(onDismiss: () -> Unit, onConfirm: (String, String, String, String, String, String) -> Unit) {
+fun AddClientDialog(onDismiss: () -> Unit, onConfirm: (String, String, String, String, String, String, String, String) -> Unit) {
     var name by remember { mutableStateOf("") }; var phone by remember { mutableStateOf("") }; var email by remember { mutableStateOf("") }
     var license by remember { mutableStateOf("") }; var identity by remember { mutableStateOf("") }; var address by remember { mutableStateOf("") }
+    var nationalIdDocumentUri by remember { mutableStateOf("") }; var driverLicenseDocumentUri by remember { mutableStateOf("") }
     FormDialog("Ajouter un client", onDismiss, enabled = name.isNotBlank() && phone.isNotBlank(), confirmLabel = "Enregistrer", content = {
         Field("Nom complet", name) { name = it }; Field("Téléphone", phone, KeyboardType.Phone) { phone = it }; Field("E-mail", email, KeyboardType.Email) { email = it }
         Field("N° permis", license) { license = it }; Field("CIN / Passeport", identity) { identity = it }; Field("Ville / adresse", address) { address = it }
-    }, onSubmit = { onConfirm(name, phone, email, license, identity, address) })
+        DocumentPickerField("Carte Nationale", nationalIdDocumentUri) { nationalIdDocumentUri = it }
+        DocumentPickerField("Permis de conduite", driverLicenseDocumentUri) { driverLicenseDocumentUri = it }
+    }, onSubmit = { onConfirm(name, phone, email, license, identity, address, nationalIdDocumentUri, driverLicenseDocumentUri) })
 }
 
 @Composable
@@ -64,10 +72,13 @@ fun EditClientDialog(client: Client, onDismiss: () -> Unit, onConfirm: (Client) 
     var name by remember(client.id) { mutableStateOf(client.fullName) }; var phone by remember(client.id) { mutableStateOf(client.phone) }
     var email by remember(client.id) { mutableStateOf(client.email) }; var license by remember(client.id) { mutableStateOf(client.driverLicenseNumber) }
     var identity by remember(client.id) { mutableStateOf(client.identityNumber) }; var address by remember(client.id) { mutableStateOf(client.address) }
+    var nationalIdDocumentUri by remember(client.id) { mutableStateOf(client.nationalIdDocumentUri) }; var driverLicenseDocumentUri by remember(client.id) { mutableStateOf(client.driverLicenseDocumentUri) }
     FormDialog("Modifier le client", onDismiss, enabled = name.isNotBlank() && phone.isNotBlank(), confirmLabel = "Enregistrer", content = {
         Field("Nom complet", name) { name = it }; Field("Téléphone", phone, KeyboardType.Phone) { phone = it }; Field("E-mail", email, KeyboardType.Email) { email = it }
         Field("N° permis", license) { license = it }; Field("CIN / Passeport", identity) { identity = it }; Field("Ville / adresse", address) { address = it }
-    }, onSubmit = { onConfirm(client.copy(fullName = name.trim(), phone = phone.trim(), email = email.trim(), driverLicenseNumber = license.trim(), identityNumber = identity.trim(), address = address.trim())) })
+        DocumentPickerField("Carte Nationale", nationalIdDocumentUri) { nationalIdDocumentUri = it }
+        DocumentPickerField("Permis de conduite", driverLicenseDocumentUri) { driverLicenseDocumentUri = it }
+    }, onSubmit = { onConfirm(client.copy(fullName = name.trim(), phone = phone.trim(), email = email.trim(), driverLicenseNumber = license.trim(), identityNumber = identity.trim(), address = address.trim(), nationalIdDocumentUri = nationalIdDocumentUri, driverLicenseDocumentUri = driverLicenseDocumentUri)) })
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -165,3 +176,20 @@ private fun ChoiceRow(label: String, values: List<String>, selected: String, onS
 }
 
 private fun dateLabel(value: Long) = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.FRANCE).format(java.util.Date(value))
+
+@Composable
+private fun DocumentPickerField(label: String, selectedUri: String, onSelected: (String) -> Unit) {
+    val context = LocalContext.current
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        onSelected(uri.toString())
+    }
+    OutlinedButton(onClick = { picker.launch(arrayOf("application/pdf", "image/*")) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp)) {
+        Icon(Icons.Default.AttachFile, null, Modifier.size(17.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(if (selectedUri.isBlank()) "Joindre $label" else "$label joint", maxLines = 1)
+    }
+}

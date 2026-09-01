@@ -1,3 +1,5 @@
+import org.gradle.api.tasks.Copy
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -5,9 +7,18 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+val contractTemplateAssetsDir = layout.buildDirectory.dir("generated/contract-template-assets")
+val copyContractTemplate by tasks.registering(Copy::class) {
+    from(rootProject.file("Exemple_contrat_location_app_auto.pdf"))
+    into(contractTemplateAssetsDir)
+}
+
+tasks.named("preBuild") { dependsOn(copyContractTemplate) }
+
 android {
     namespace = "ma.locaauto.offline"
     compileSdk = 35
+    sourceSets.getByName("main").assets.srcDir(contractTemplateAssetsDir)
 
     defaultConfig {
         applicationId = "ma.locaauto.offline"

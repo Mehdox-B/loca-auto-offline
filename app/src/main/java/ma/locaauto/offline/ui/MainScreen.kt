@@ -313,7 +313,7 @@ private fun ClientsScreen(clients: List<Client>, vm: RentalViewModel) {
         items(filtered, key = { it.id }) { client -> ClientCard(client, onEdit = { editClient = client }, onDelete = { deleteClient = client }) }
         if (filtered.isEmpty()) item { EmptyState("Aucun client trouvé") }
     }
-    if (showAdd) AddClientDialog({ showAdd = false }) { name, phone, email, license, identity, address -> vm.addClient(name, phone, email, license, identity, address); showAdd = false }
+    if (showAdd) AddClientDialog({ showAdd = false }) { name, phone, email, license, identity, address, nationalIdUri, driverLicenseUri -> vm.addClient(name, phone, email, license, identity, address, nationalIdUri, driverLicenseUri); showAdd = false }
     editClient?.let { client -> EditClientDialog(client, { editClient = null }) { updated -> vm.updateClient(updated); editClient = null } }
     deleteClient?.let { client -> DeleteConfirmDialog("Supprimer ce client ?", "La suppression est refusée si le client possède une réservation.", { deleteClient = null }) { vm.deleteClient(client.id); deleteClient = null } }
 }
@@ -327,6 +327,7 @@ private fun ClientCard(client: Client, onEdit: () -> Unit, onDelete: () -> Unit)
                 Text(client.fullName, fontWeight = FontWeight.Bold)
                 Text("${client.phone}${if (client.address.isBlank()) "" else " • ${client.address}"}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (client.driverLicenseNumber.isNotBlank()) Text("Permis ${client.driverLicenseNumber}", fontSize = 11.sp)
+                if (client.nationalIdDocumentUri.isNotBlank() || client.driverLicenseDocumentUri.isNotBlank()) Text("Documents : ${if (client.nationalIdDocumentUri.isNotBlank()) "Carte Nationale" else ""}${if (client.nationalIdDocumentUri.isNotBlank() && client.driverLicenseDocumentUri.isNotBlank()) " • " else ""}${if (client.driverLicenseDocumentUri.isNotBlank()) "Permis" else ""}", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
             }
             Column(horizontalAlignment = Alignment.End) {
                 IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, "Modifier", tint = MaterialTheme.colorScheme.primary) }
@@ -352,7 +353,14 @@ private fun DocumentsScreen(contracts: List<Contract>, invoices: List<Invoice>, 
                 amount = "Caution ${money(contract.depositAmount)} MAD",
                 onStatus = { vm.updateContractStatus(contract.id, it) },
                 onDelete = { vm.deleteContract(contract.id) },
-                onExport = { val result = PdfExporter.exportContract(context, contract, client?.fullName ?: "Client", car?.let { c -> "${c.brand} ${c.model}" } ?: "Véhicule"); Toast.makeText(context, result, Toast.LENGTH_LONG).show() }
+                onExport = {
+                    val result = when {
+                        contract.status !in listOf(ContractStatus.SIGNED, ContractStatus.ACTIVE, ContractStatus.CLOSED) -> "Export disponible après signature du contrat"
+                        res == null || client == null || car == null -> "Export impossible : réservation, client ou véhicule introuvable"
+                        else -> PdfExporter.exportContract(context, contract, res, client, car)
+                    }
+                    Toast.makeText(context, result, Toast.LENGTH_LONG).show()
+                }
             )
         } else items(invoices, key = { it.id }) { invoice ->
             val res = reservations.find { it.id == invoice.reservationId }; val car = cars.find { it.id == res?.carId }; val client = clients.find { it.id == res?.clientId }

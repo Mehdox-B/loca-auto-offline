@@ -2,6 +2,7 @@ package ma.locaauto.offline.data
 
 import android.content.Context
 import androidx.room.Database
+import androidx.room.migration.Migration
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
@@ -9,9 +10,16 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
+private val MIGRATION_1_2 = object : Migration(1, 2) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE clients ADD COLUMN nationalIdDocumentUri TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE clients ADD COLUMN driverLicenseDocumentUri TEXT NOT NULL DEFAULT ''")
+    }
+}
+
 @Database(
     entities = [Car::class, Client::class, Reservation::class, Contract::class, Invoice::class, MaintenanceRecord::class, Expense::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -22,6 +30,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun get(context: Context, scope: CoroutineScope): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "locaauto_offline.db")
+                .addMigrations(MIGRATION_1_2)
                 .addCallback(SeedCallback(scope))
                 .build()
                 .also { instance = it }

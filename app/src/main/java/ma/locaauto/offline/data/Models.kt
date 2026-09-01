@@ -59,7 +59,9 @@ data class Client(
     val identityNumber: String = "",
     val address: String = "",
     val notes: String = "",
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val nationalIdDocumentUri: String = "",
+    val driverLicenseDocumentUri: String = ""
 )
 
 @Entity(tableName = "reservations")
